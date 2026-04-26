@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Activity, FileSearch, KeyRound, ListChecks, Send, Shield, UserCircle, Users } from "lucide-react";
+import { Activity, FileSearch, KeyRound, ListChecks, Radar, Send, Shield, UserCircle, Users } from "lucide-react";
 import { signOut } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -16,6 +16,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Tableau de bord", icon: Activity, minRole: "VIEWER" },
+  { href: "/intelligence", label: "Intelligence pays", icon: Radar, minRole: "ANALYST" },
   { href: "/sites", label: "Sites", icon: FileSearch, minRole: "VIEWER" },
   { href: "/blocklist", label: "Liste de blocage", icon: Shield, minRole: "VIEWER" },
   { href: "/audit", label: "Journal d'audit", icon: ListChecks, minRole: "ANALYST" },
