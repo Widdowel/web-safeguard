@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# web-safeguard
 
-## Getting Started
+Plateforme institutionnelle de surveillance et de blocage des sites/applications frauduleux pour un régulateur national.
 
-First, run the development server:
+Voir `CLAUDE.md` (et les fichiers `@.claude/memory/*.md`) pour la mémoire projet : domaine, stack, architecture, conventions, décisions techniques.
+
+## Stack
+
+Next.js 16 · React 19 · Prisma 7 · Auth.js v5 (beta) · Tailwind 4 · shadcn (`base-nova`).
+
+## Développement local
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install                    # installe les deps + génère le client Prisma (postinstall)
+cp .env.example .env           # ajuste les valeurs (voir section ci-dessous)
+npx prisma migrate dev         # crée la DB + applique les migrations
+npm run db:seed                # crée le super-admin initial
+npm run dev                    # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Variables d'environnement
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable | Obligatoire | Description |
+|---|---|---|
+| `DATABASE_URL` | ✅ | Postgres. Local : URL Prisma dev (port 51214). Production : URL Neon (`*.neon.tech`). L'app détecte Neon automatiquement et utilise l'adapter sans WebSocket. |
+| `AUTH_SECRET` | ✅ | Min. 32 caractères. `openssl rand -base64 32`. À rotater avant production. |
+| `AUTH_URL` | ❌ | Inutile sur Vercel (dérivé de `VERCEL_URL`). À définir uniquement en self-hosted custom. |
+| `SEED_SUPER_ADMIN_EMAIL` | ❌ | Email du super-admin initial. Défaut : `admin@web-safeguard.local`. |
+| `SEED_SUPER_ADMIN_PASSWORD` | ❌ | Mot de passe du super-admin. Défaut : `ChangeMe!2026`. **À changer dès le premier login.** |
+| `IP_HASH_SALT` | ❌ (mais recommandé) | Sel HMAC pour hacher les IPs ingérées. `openssl rand -hex 32`. |
+| `INGEST_TOKEN_PEPPER` | ❌ (mais recommandé) | Pepper HMAC pour hacher les tokens d'ingestion en DB. |
+| `GOOGLE_SAFE_BROWSING_API_KEY` | ❌ | Active le provider Google Safe Browsing dans le pipeline de scan. |
+| `VIRUSTOTAL_API_KEY` | ❌ | Active VirusTotal. |
+| `URLSCAN_API_KEY` | ❌ | Active urlscan.io. |
+| `PHISHTANK_API_KEY` | ❌ | Optionnel — PhishTank fonctionne sans clé mais avec rate-limit plus strict. |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Déploiement Vercel
 
-## Learn More
+1. Crée une base **Neon** (ou Vercel Postgres, qui est Neon en sous-jacent) — récupère l'URL `postgresql://...neon.tech/...?sslmode=require`.
+2. Importe le repo sur Vercel : `vercel link` ou via l'UI `vercel.com/new`.
+3. Dans **Project Settings → Environment Variables**, ajoute au minimum `DATABASE_URL` et `AUTH_SECRET` (cf. tableau ci-dessus). Ajoute les clés API des providers de scan que tu veux activer.
+4. **Build command** par défaut OK : Vercel exécute `npm install` (déclenche `postinstall: prisma generate`) puis `npm run build` (qui re-génère + `next build`).
+5. Déploie. Le premier déploiement va échouer si la DB n'a pas les tables — applique les migrations :
+   ```bash
+   # Depuis ton PC, avec DATABASE_URL pointant sur Neon
+   npx prisma migrate deploy
+   npm run db:seed
+   ```
+6. Reviens sur la production, login avec les creds seed, change le mot de passe.
 
-To learn more about Next.js, take a look at the following resources:
+## Routes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `/` — landing publique
+- `/login` — connexion (Credentials)
+- `/dashboard` — vue synthétique (auth requise)
+- `/sites`, `/sites/[id]` — sites surveillés + classification
+- `/blocklist` — règles actives
+- `/audit` — journal d'audit (rôle ANALYST+)
+- `/users` — gestion utilisateurs (rôle ADMIN+)
+- `POST /api/ingest/traffic` — ingestion NDJSON (token Bearer)
+- `GET /api/blocklist/{rpz,json,hosts,bgp}` — diffusion blocklist (token Bearer + ETag)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts npm
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Script | Description |
+|---|---|
+| `npm run dev` | Serveur dev (Turbopack). |
+| `npm run build` | `prisma generate && next build`. |
+| `npm run typecheck` | `tsc --noEmit`. |
+| `npm run lint` | ESLint. |
+| `npm run db:migrate` | `prisma migrate dev` (dev local). |
+| `npm run db:deploy` | `prisma migrate deploy` (prod / CI). |
+| `npm run db:studio` | GUI Prisma Studio. |
+| `npm run db:seed` | Crée le super-admin initial. |
+| `npm run db:reset` | ⚠️ Reset complet (dev uniquement). |
