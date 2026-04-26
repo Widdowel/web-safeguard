@@ -13,17 +13,44 @@ const GROUP_LABEL: Record<Group, string> = {
   "Hors Afrique": "Hors Afrique",
 };
 
-export function CountrySelector({
-  name = "countries",
-  defaultSelected = [],
-  worldwideHint = "Aucun pays sélectionné = blocage mondial",
-}: {
+type ControlledProps = {
   name?: string;
-  defaultSelected?: readonly string[];
   worldwideHint?: string;
-}) {
+  value: readonly string[];
+  onChange: (selected: string[]) => void;
+  defaultSelected?: never;
+};
+
+type UncontrolledProps = {
+  name?: string;
+  worldwideHint?: string;
+  defaultSelected?: readonly string[];
+  value?: never;
+  onChange?: never;
+};
+
+export type CountrySelectorProps = ControlledProps | UncontrolledProps;
+
+export function CountrySelector(props: CountrySelectorProps) {
+  const {
+    name = "countries",
+    worldwideHint = "Aucun pays sélectionné = blocage mondial",
+  } = props;
+
   const id = useId();
-  const [selected, setSelected] = useState<Set<string>>(new Set(defaultSelected));
+  const isControlled = "value" in props && props.value !== undefined;
+  const [internalSelected, setInternalSelected] = useState<Set<string>>(
+    new Set(props.defaultSelected ?? []),
+  );
+  const selected = isControlled ? new Set(props.value) : internalSelected;
+
+  const apply = (next: Set<string>) => {
+    if (isControlled) {
+      props.onChange?.([...next]);
+    } else {
+      setInternalSelected(next);
+    }
+  };
 
   const grouped = useMemo(() => {
     const map = new Map<Group, Country[]>();
@@ -33,22 +60,18 @@ export function CountrySelector({
   }, []);
 
   const toggle = (code: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(code)) next.delete(code);
-      else next.add(code);
-      return next;
-    });
+    const next = new Set(selected);
+    if (next.has(code)) next.delete(code);
+    else next.add(code);
+    apply(next);
   };
-
-  const setAll = (codes: string[]) => setSelected(new Set(codes));
-  const clear = () => setSelected(new Set());
 
   return (
     <div className="space-y-3">
-      {[...selected].map((code) => (
-        <input key={code} type="hidden" name={name} value={code} />
-      ))}
+      {!isControlled &&
+        [...selected].map((code) => (
+          <input key={code} type="hidden" name={name} value={code} />
+        ))}
 
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="text-muted-foreground">Préréglages :</span>
@@ -56,7 +79,7 @@ export function CountrySelector({
           type="button"
           size="sm"
           variant="outline"
-          onClick={() => setAll(ECOWAS_CODES)}
+          onClick={() => apply(new Set(ECOWAS_CODES))}
         >
           CEDEAO complet
         </Button>
@@ -64,11 +87,11 @@ export function CountrySelector({
           type="button"
           size="sm"
           variant="outline"
-          onClick={() => setAll(["BJ"])}
+          onClick={() => apply(new Set(["BJ"]))}
         >
           Bénin uniquement
         </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={clear}>
+        <Button type="button" size="sm" variant="ghost" onClick={() => apply(new Set())}>
           Tout désélectionner
         </Button>
         <span className="ml-auto text-muted-foreground">{selected.size} pays</span>

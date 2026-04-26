@@ -140,6 +140,89 @@ export async function classifySite(
   return { ok: true, error: null };
 }
 
+const quickScanSchema = z.object({
+  domain: z
+    .string()
+    .min(3)
+    .max(253)
+    .transform((v) => v.trim().toLowerCase())
+    .refine((v) => /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(v), {
+      message: "Domaine invalide",
+    }),
+});
+
+export type QuickScanState = {
+  ok: boolean;
+  error: string | null;
+  scannedDomain?: string;
+};
+
+export async function quickScanDomain(
+  _prev: QuickScanState,
+  formData: FormData,
+): Promise<QuickScanState> {
+  let user;
+  try {
+    user = await requireRole("ANALYST");
+  } catch (e) {
+    if (e instanceof AuthorizationError) return { ok: false, error: e.message };
+    throw e;
+  }
+
+  const parsed = quickScanSchema.safeParse({ domain: formData.get("domain") });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Domaine invalide" };
+  }
+
+  const countries = sanitizeCountries(formData.getAll("countries"));
+  const { domain } = parsed.data;
+
+  const site = await prisma.site.upsert({
+    where: { domain },
+    create: {
+      domain,
+      status: SiteStatus.PENDING,
+      firstSeenAt: new Date(),
+      lastSeenAt: new Date(),
+    },
+    update: {},
+  });
+
+  const scanRun = await prisma.$transaction(async (tx) => {
+    const run = await tx.scanRun.create({
+      data: {
+        siteId: site.id,
+        requesterId: user.id,
+        countries,
+      },
+    });
+    await logAudit(
+      {
+        actorId: user.id,
+        action: AuditAction.SITE_RESCAN,
+        target: domain,
+        after: { countries, viaQuickScan: true } satisfies Prisma.InputJsonValue,
+      },
+      tx,
+    );
+    return run;
+  });
+
+  runScan(scanRun.id).catch((err) => {
+    console.error(`Scan ${scanRun.id} failed:`, err);
+  });
+
+  revalidatePath("/sites");
+  revalidatePath(`/sites/${site.id}`);
+  revalidatePath("/audit");
+
+  return {
+    ok: true,
+    error: null,
+    scannedDomain: domain,
+  };
+}
+
 const quickBlockSchema = z.object({
   domain: z
     .string()
