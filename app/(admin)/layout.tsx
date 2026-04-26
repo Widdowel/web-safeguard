@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Activity, FileSearch, ListChecks, Shield, Users } from "lucide-react";
+import { Activity, FileSearch, KeyRound, ListChecks, Send, Shield, UserCircle, Users } from "lucide-react";
 import { signOut } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -20,6 +20,9 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/blocklist", label: "Liste de blocage", icon: Shield, minRole: "VIEWER" },
   { href: "/audit", label: "Journal d'audit", icon: ListChecks, minRole: "ANALYST" },
   { href: "/users", label: "Utilisateurs", icon: Users, minRole: "ADMIN" },
+  { href: "/sources", label: "Sources d'ingestion", icon: KeyRound, minRole: "ADMIN" },
+  { href: "/webhooks", label: "Webhooks", icon: Send, minRole: "ADMIN" },
+  { href: "/account", label: "Mon compte", icon: UserCircle, minRole: "VIEWER" },
 ];
 
 const ROLE_LABELS: Record<Role, string> = {

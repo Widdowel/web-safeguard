@@ -2,12 +2,19 @@ import type { Prisma } from "@/app/generated/prisma";
 import { prisma } from "@/lib/prisma";
 import { aggregateResults } from "@/lib/scan/aggregate";
 import { googleSafeBrowsing } from "@/lib/scan/providers/google-safe-browsing";
+import { internalCrawler } from "@/lib/scan/providers/internal-crawler";
 import { phishtank } from "@/lib/scan/providers/phishtank";
 import { urlscan } from "@/lib/scan/providers/urlscan";
 import { virustotal } from "@/lib/scan/providers/virustotal";
 import type { ProviderResult, ProviderRunner } from "@/lib/scan/types";
 
-const PROVIDERS: ProviderRunner[] = [googleSafeBrowsing, phishtank, urlscan, virustotal];
+const PROVIDERS: ProviderRunner[] = [
+  googleSafeBrowsing,
+  phishtank,
+  urlscan,
+  virustotal,
+  internalCrawler,
+];
 
 export async function runScan(scanRunId: string): Promise<void> {
   const scanRun = await prisma.scanRun.findUnique({
