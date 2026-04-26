@@ -140,6 +140,121 @@ export async function classifySite(
   return { ok: true, error: null };
 }
 
+const quickBlockSchema = z.object({
+  domain: z
+    .string()
+    .min(3)
+    .max(253)
+    .transform((v) => v.trim().toLowerCase())
+    .refine((v) => /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(v), {
+      message: "Domaine invalide",
+    }),
+  reason: z.string().max(500).optional(),
+});
+
+export type QuickBlockState = {
+  ok: boolean;
+  error: string | null;
+  blockedDomain?: string;
+  scope?: string;
+};
+
+export async function quickBlockDomain(
+  _prev: QuickBlockState,
+  formData: FormData,
+): Promise<QuickBlockState> {
+  let user;
+  try {
+    user = await requireRole("OPERATOR");
+  } catch (e) {
+    if (e instanceof AuthorizationError) return { ok: false, error: e.message };
+    throw e;
+  }
+
+  const parsed = quickBlockSchema.safeParse({
+    domain: formData.get("domain"),
+    reason: formData.get("reason") || undefined,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Données invalides" };
+  }
+
+  const countries = sanitizeCountries(formData.getAll("countries"));
+  const { domain, reason } = parsed.data;
+
+  await prisma.$transaction(async (tx) => {
+    const site = await tx.site.upsert({
+      where: { domain },
+      create: {
+        domain,
+        status: SiteStatus.DANGEROUS,
+        firstSeenAt: new Date(),
+        lastSeenAt: new Date(),
+      },
+      update: {},
+    });
+
+    const existing = await tx.blockRule.findUnique({
+      where: { type_value: { type: BlockRuleType.DOMAIN, value: domain } },
+    });
+
+    const merged = existing ? mergeCountries(existing.countries, countries) : countries;
+
+    if (existing) {
+      await tx.blockRule.update({
+        where: { id: existing.id },
+        data: {
+          isActive: true,
+          revokedAt: null,
+          countries: merged,
+          reason: reason ?? existing.reason ?? "Blocage rapide par nom de domaine",
+        },
+      });
+    } else {
+      await tx.blockRule.create({
+        data: {
+          type: BlockRuleType.DOMAIN,
+          value: domain,
+          siteId: site.id,
+          reason: reason ?? "Blocage rapide par nom de domaine",
+          isActive: true,
+          countries: merged,
+        },
+      });
+    }
+
+    await logAudit(
+      {
+        actorId: user.id,
+        action: AuditAction.BLOCK_ADD,
+        target: domain,
+        reason,
+        before: existing
+          ? ({ countries: existing.countries } satisfies Prisma.InputJsonValue)
+          : null,
+        after: { countries: merged, viaQuickBlock: true } satisfies Prisma.InputJsonValue,
+      },
+      tx,
+    );
+  });
+
+  notifyBlocklistChanged().catch((err) => {
+    console.error("Webhook delivery failed:", err);
+  });
+
+  revalidatePath("/sites");
+  revalidatePath("/blocklist");
+  revalidatePath("/audit");
+  revalidatePath("/dashboard");
+
+  return {
+    ok: true,
+    error: null,
+    blockedDomain: domain,
+    scope: formatCountries(countries),
+  };
+}
+
 const blockSchema = z.object({
   siteId: z.string().min(1),
   reason: z.string().max(500).optional(),
