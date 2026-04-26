@@ -1,23 +1,14 @@
 import { Role } from "@/app/generated/prisma";
 import { auth } from "@/auth";
+import { hasAtLeastRole } from "@/lib/rbac/hierarchy";
+
+export { hasAtLeastRole } from "@/lib/rbac/hierarchy";
 
 export class AuthorizationError extends Error {
   constructor(message = "Forbidden") {
     super(message);
     this.name = "AuthorizationError";
   }
-}
-
-const HIERARCHY: Record<Role, number> = {
-  VIEWER: 0,
-  OPERATOR: 1,
-  ANALYST: 2,
-  ADMIN: 3,
-  SUPER_ADMIN: 4,
-};
-
-export function hasAtLeastRole(actual: Role, required: Role): boolean {
-  return HIERARCHY[actual] >= HIERARCHY[required];
 }
 
 export type SessionUser = {
