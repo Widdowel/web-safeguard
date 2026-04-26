@@ -1,7 +1,14 @@
+import "dotenv/config";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "bcryptjs";
 import { PrismaClient, Role } from "../app/generated/prisma";
 
-const prisma = new PrismaClient();
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is required");
+}
+
+const adapter = new PrismaPg(process.env.DATABASE_URL);
+const prisma = new PrismaClient({ adapter });
 
 const SEED_EMAIL = process.env.SEED_SUPER_ADMIN_EMAIL ?? "admin@web-safeguard.local";
 const SEED_PASSWORD = process.env.SEED_SUPER_ADMIN_PASSWORD ?? "ChangeMe!2026";
