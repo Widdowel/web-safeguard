@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Public routes — no auth check needed
   if (
     pathname === "/" ||
     pathname === "/login" ||
@@ -16,7 +15,6 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for session token (set by NextAuth)
   const token =
     req.cookies.get("authjs.session-token")?.value ||
     req.cookies.get("__Secure-authjs.session-token")?.value;

@@ -40,7 +40,7 @@ web-safeguard/
 │   ├── ui/                       # Composants shadcn (base-nova)
 │   └── …                         # Composants métier
 ├── hooks/                        # Custom React hooks (client)
-├── middleware.ts                 # ✅ Existe — auth gate + redirections
+├── proxy.ts                 # ✅ Existe — auth gate + redirections
 ├── auth.ts                       # Re-export depuis lib/auth (convention Auth.js v5)
 └── …configs (next.config.ts, tsconfig.json, etc.)
 ```
@@ -67,15 +67,17 @@ web-safeguard/
 - **Mutations internes** (changer une classification, ajouter une règle, modifier un user) → **Server Actions**. Types end-to-end, validation Zod côté action.
 - **API routes** réservées à : intégrations externes (ingestion FAI, diffusion blocklist aux FAI), webhooks, OAuth callbacks.
 
-## Middleware (déjà en place)
+## Proxy (Next 16 — anciennement middleware)
 
-`middleware.ts` redirige vers `/login` toute requête sans cookie `authjs.session-token` (ou `__Secure-authjs.session-token` en HTTPS), sauf liste blanche : `/`, `/login`, `/api/auth/*`, `/api/public/*`, `/_next/*`, fichiers statiques (`.ext`).
+⚠️ Next 16 a renommé `middleware.ts` → `proxy.ts` (la fonction exportée s'appelle `proxy`).
 
-⚠️ Le middleware ne **vérifie pas** le rôle. Le RBAC se fait :
+`proxy.ts` redirige vers `/login` toute requête sans cookie `authjs.session-token` (ou `__Secure-authjs.session-token` en HTTPS), sauf liste blanche : `/`, `/login`, `/api/auth/*`, `/api/public/*`, `/_next/*`, fichiers statiques (`.ext`).
+
+⚠️ Le proxy ne **vérifie pas** le rôle. Le RBAC se fait :
 1. Dans les **layouts d'aire** (ex: `app/(admin)/layout.tsx` lit la session et redirige si pas le bon rôle).
 2. Dans **chaque Server Action / API route** sensible (helper `lib/rbac.ts#requireRole(role)`).
 
-Ne pas faire confiance au middleware pour le RBAC fin (Next.js peut l'optimiser et il tourne en edge runtime sans accès Prisma).
+Ne pas faire confiance au proxy pour le RBAC fin (Next.js peut l'optimiser et il tourne en edge runtime sans accès Prisma).
 
 ## Audit log
 
