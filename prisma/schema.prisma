@@ -94,6 +94,8 @@ model Site {
   lastSeenAt    DateTime   @default(now())
   status        SiteStatus @default(PENDING)
   trafficScore  Float      @default(0)
+  trustScore    Int?
+  lastScanAt    DateTime?
   notes         String?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
@@ -105,6 +107,8 @@ model Site {
 
   @@index([status])
   @@index([trafficScore])
+  @@index([trustScore])
+  @@index([lastScanAt])
 }
 
 model SiteClassification {
@@ -142,15 +146,24 @@ enum ScanVerdict {
   NO_DATA
 }
 
+enum ScanRunStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
 model ScanRun {
   id          String    @id @default(cuid())
   siteId      String
   requesterId String?
   countries   String[]  @default([])
+  status      ScanRunStatus @default(PENDING)
   startedAt   DateTime  @default(now())
   finishedAt  DateTime?
   aggregateScore Float?
   aggregateVerdict ScanVerdict?
+  trustScore  Int?
 
   site      Site            @relation(fields: [siteId], references: [id], onDelete: Cascade)
   requester User?           @relation("ScanRequester", fields: [requesterId], references: [id])
@@ -158,6 +171,7 @@ model ScanRun {
 
   @@index([siteId])
   @@index([startedAt])
+  @@index([status])
 }
 
 model ScanResult {
