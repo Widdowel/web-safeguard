@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { SiteStatus } from "@/app/generated/prisma";
+import { BlockRuleType, SiteStatus } from "@/app/generated/prisma";
+import { BulkBlockForm } from "@/components/sites/bulk-block-form";
 import { SiteStatusBadge } from "@/components/site-status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -10,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatCountries } from "@/lib/countries";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
@@ -44,6 +47,17 @@ export default async function SitesPage({ searchParams }: { searchParams: Search
       status: true,
       trafficScore: true,
       lastSeenAt: true,
+      blockRules: {
+        where: { isActive: true, type: BlockRuleType.DOMAIN },
+        select: { countries: true },
+      },
+    },
+  });
+
+  const totalMatching = await prisma.site.count({
+    where: {
+      ...(isValidStatus && statusFilter ? { status: statusFilter } : {}),
+      ...(query ? { domain: { contains: query, mode: "insensitive" } } : {}),
     },
   });
 
@@ -53,7 +67,7 @@ export default async function SitesPage({ searchParams }: { searchParams: Search
         <h1 className="text-2xl font-semibold tracking-tight">Sites surveillés</h1>
         <p className="text-sm text-muted-foreground">
           Domaines collectés via l&apos;ingestion. Cliquez sur un site pour examiner les scans et
-          modifier sa classification.
+          modifier sa classification ou son blocage.
         </p>
       </header>
 
@@ -61,7 +75,10 @@ export default async function SitesPage({ searchParams }: { searchParams: Search
         <CardHeader className="space-y-4">
           <div>
             <CardTitle>Filtres</CardTitle>
-            <CardDescription>Affichage limité à 100 sites par défaut.</CardDescription>
+            <CardDescription>
+              Affichage limité à 100 sites par défaut. {totalMatching} site(s) correspondent aux
+              filtres.
+            </CardDescription>
           </div>
           <form className="flex flex-wrap gap-2">
             <div className="flex flex-wrap gap-2">
@@ -98,6 +115,18 @@ export default async function SitesPage({ searchParams }: { searchParams: Search
             />
           </form>
         </CardHeader>
+        <CardContent className="space-y-4 px-6 pb-6 pt-0">
+          <BulkBlockForm
+            defaultStatus={isValidStatus ? statusFilter : undefined}
+            defaultQuery={query}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Résultats</CardTitle>
+        </CardHeader>
         <CardContent className="px-0">
           {sites.length === 0 ? (
             <p className="px-6 pb-6 text-sm text-muted-foreground">
@@ -109,32 +138,45 @@ export default async function SitesPage({ searchParams }: { searchParams: Search
                 <TableRow>
                   <TableHead>Domaine</TableHead>
                   <TableHead>Statut</TableHead>
+                  <TableHead>Blocage</TableHead>
                   <TableHead className="text-right">Score</TableHead>
                   <TableHead>Vu pour la dernière fois</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sites.map((site) => (
-                  <TableRow key={site.id}>
-                    <TableCell>
-                      <Link
-                        href={`/sites/${site.id}`}
-                        className="font-mono text-xs underline-offset-2 hover:underline"
-                      >
-                        {site.domain}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <SiteStatusBadge status={site.status} />
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatNumber(Math.round(site.trafficScore))}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {formatDateTime(site.lastSeenAt)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {sites.map((site) => {
+                  const rule = site.blockRules[0];
+                  return (
+                    <TableRow key={site.id}>
+                      <TableCell>
+                        <Link
+                          href={`/sites/${site.id}`}
+                          className="font-mono text-xs underline-offset-2 hover:underline"
+                        >
+                          {site.domain}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <SiteStatusBadge status={site.status} />
+                      </TableCell>
+                      <TableCell>
+                        {rule ? (
+                          <Badge variant="destructive">
+                            {formatCountries(rule.countries)}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatNumber(Math.round(site.trafficScore))}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {formatDateTime(site.lastSeenAt)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

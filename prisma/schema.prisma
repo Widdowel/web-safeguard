@@ -146,6 +146,7 @@ model ScanRun {
   id          String    @id @default(cuid())
   siteId      String
   requesterId String?
+  countries   String[]  @default([])
   startedAt   DateTime  @default(now())
   finishedAt  DateTime?
   aggregateScore Float?
@@ -190,6 +191,7 @@ model BlockRule {
   value     String
   reason    String?
   isActive  Boolean       @default(true)
+  countries String[]      @default([])
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
   revokedAt DateTime?
@@ -330,6 +332,7 @@ enum AuditAction {
   SITE_CLASSIFY
   SITE_RESCAN
   BLOCK_ADD
+  BLOCK_BULK_ADD
   BLOCK_REMOVE
   BLOCKLIST_PUBLISH
   INGEST_SOURCE_CREATE

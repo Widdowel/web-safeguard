@@ -8,7 +8,9 @@ export async function GET(req: Request) {
   const auth = await authorizeBlocklistConsumer(req);
   if (!auth.ok) return auth.response;
 
-  const snapshot = await getActiveBlocklist();
+  const url = new URL(req.url);
+  const country = url.searchParams.get("country");
+  const snapshot = await getActiveBlocklist(country);
   const notModified = notModifiedIfMatchingEtag(req, snapshot.etag);
   if (notModified) return notModified;
 
@@ -27,6 +29,7 @@ export async function GET(req: Request) {
     `)`,
     `@ IN NS ns.web-safeguard.local.`,
     "",
+    `; Country scope: ${snapshot.country ?? "global"}`,
     "; Blocked domains (NXDOMAIN)",
   ];
 

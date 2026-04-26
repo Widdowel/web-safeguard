@@ -47,7 +47,11 @@ export async function deliverToSubscriber(
     etag: snapshot.etag,
     generatedAt: new Date().toISOString(),
     count: snapshot.entries.length,
-    entries: snapshot.entries.map((e) => ({ type: e.type, value: e.value })),
+    entries: snapshot.entries.map((e) => ({
+      type: e.type,
+      value: e.value,
+      countries: e.countries,
+    })),
   });
   const payloadHash = createHash("sha256").update(payload).digest("hex");
   const signature = createHmac("sha256", subscriber.secretHash)

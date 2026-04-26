@@ -8,7 +8,9 @@ export async function GET(req: Request) {
   const auth = await authorizeBlocklistConsumer(req);
   if (!auth.ok) return auth.response;
 
-  const snapshot = await getActiveBlocklist();
+  const url = new URL(req.url);
+  const country = url.searchParams.get("country");
+  const snapshot = await getActiveBlocklist(country);
   const notModified = notModifiedIfMatchingEtag(req, snapshot.etag);
   if (notModified) return notModified;
 
@@ -16,10 +18,12 @@ export async function GET(req: Request) {
     version: snapshot.etag,
     generatedAt: new Date().toISOString(),
     lastModified: snapshot.lastModified.toISOString(),
+    country: snapshot.country,
     count: snapshot.entries.length,
     entries: snapshot.entries.map((e) => ({
       type: e.type,
       value: e.value,
+      countries: e.countries,
       updatedAt: e.updatedAt.toISOString(),
     })),
   });
