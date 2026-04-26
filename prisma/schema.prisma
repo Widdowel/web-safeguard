@@ -214,6 +214,50 @@ model BlocklistPublish {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Blocklist webhook subscribers (ADR-0003 push option)
+// ─────────────────────────────────────────────────────────────
+
+model BlocklistSubscriber {
+  id          String    @id @default(cuid())
+  name        String
+  url         String
+  secretHash  String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  lastEtagSent String?
+  lastSuccessAt DateTime?
+
+  deliveries WebhookDelivery[]
+
+  @@index([isActive])
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+model WebhookDelivery {
+  id           String                @id @default(cuid())
+  subscriberId String
+  etag         String
+  payloadHash  String
+  attempts     Int                   @default(0)
+  status       WebhookDeliveryStatus @default(PENDING)
+  responseCode Int?
+  responseBody String?
+  errorMessage String?
+  createdAt    DateTime              @default(now())
+  deliveredAt  DateTime?
+
+  subscriber BlocklistSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@index([subscriberId])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────
 // Traffic ingestion (ADR-0002)
 // ─────────────────────────────────────────────────────────────
 
@@ -291,6 +335,8 @@ enum AuditAction {
   INGEST_SOURCE_CREATE
   INGEST_TOKEN_CREATE
   INGEST_TOKEN_REVOKE
+  WEBHOOK_SUBSCRIBE
+  WEBHOOK_UNSUBSCRIBE
   USER_CREATE
   USER_DELETE
   USER_ROLE_CHANGE

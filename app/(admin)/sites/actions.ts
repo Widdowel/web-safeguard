@@ -12,6 +12,7 @@ import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { AuthorizationError, requireRole } from "@/lib/rbac";
 import { runScan } from "@/lib/scan/runner";
+import { notifyBlocklistChanged } from "@/lib/webhook/delivery";
 
 const classifySchema = z.object({
   siteId: z.string().min(1),
@@ -43,6 +44,7 @@ export async function classifySite(
   }
 
   const { siteId, toState, reason } = parsed.data;
+  const blocklistChange = { changed: false };
 
   await prisma.$transaction(async (tx) => {
     const before = await tx.site.findUnique({ where: { id: siteId } });
@@ -97,6 +99,7 @@ export async function classifySite(
         },
         tx,
       );
+      blocklistChange.changed = true;
     } else if (before.status === SiteStatus.DANGEROUS) {
       const rule = await tx.blockRule.findUnique({
         where: { type_value: { type: BlockRuleType.DOMAIN, value: before.domain } },
@@ -115,9 +118,16 @@ export async function classifySite(
           },
           tx,
         );
+        blocklistChange.changed = true;
       }
     }
   });
+
+  if (blocklistChange.changed) {
+    notifyBlocklistChanged().catch((err) => {
+      console.error("Webhook delivery failed:", err);
+    });
+  }
 
   revalidatePath("/sites");
   revalidatePath(`/sites/${siteId}`);
