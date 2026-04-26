@@ -50,12 +50,20 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Intelligence par pays</h1>
-        <p className="text-sm text-muted-foreground">
-          Identifie les plateformes à fort trafic depuis un pays donné, lance des scans en masse
-          et mesure le niveau de confiance global.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Intelligence par pays</h1>
+          <p className="text-sm text-muted-foreground">
+            Identifie les plateformes à fort trafic depuis un pays donné, lance des scans en
+            masse et mesure le niveau de confiance global.
+          </p>
+        </div>
+        <Link
+          href="/intelligence/import"
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent"
+        >
+          + Importer des domaines
+        </Link>
       </header>
 
       <Card>
