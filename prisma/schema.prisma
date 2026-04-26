@@ -282,6 +282,7 @@ model HashSalt {
 enum AuditAction {
   LOGIN
   LOGOUT
+  PASSWORD_CHANGE
   SITE_CLASSIFY
   SITE_RESCAN
   BLOCK_ADD
