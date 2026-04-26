@@ -1,0 +1,316 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────
+// Auth.js v5 standard tables (extended with role + password)
+// ─────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  ANALYST
+  OPERATOR
+  VIEWER
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  emailVerified  DateTime?
+  name           String?
+  image          String?
+  hashedPassword String?
+  role           Role      @default(VIEWER)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  accounts          Account[]
+  sessions          Session[]
+  classifications   SiteClassification[]
+  auditEvents       AuditEvent[]         @relation("AuditActor")
+  scanRequests      ScanRun[]            @relation("ScanRequester")
+  blocklistPublishes BlocklistPublish[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Sites under surveillance
+// ─────────────────────────────────────────────────────────────
+
+enum SiteStatus {
+  PENDING
+  SAFE
+  SUSPICIOUS
+  DANGEROUS
+  WHITELISTED
+}
+
+model Site {
+  id            String     @id @default(cuid())
+  domain        String     @unique
+  firstSeenAt   DateTime   @default(now())
+  lastSeenAt    DateTime   @default(now())
+  status        SiteStatus @default(PENDING)
+  trafficScore  Float      @default(0)
+  notes         String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  scans           ScanRun[]
+  classifications SiteClassification[]
+  blockRules      BlockRule[]
+  trafficSamples  TrafficSample[]
+
+  @@index([status])
+  @@index([trafficScore])
+}
+
+model SiteClassification {
+  id        String     @id @default(cuid())
+  siteId    String
+  actorId   String
+  fromState SiteStatus
+  toState   SiteStatus
+  reason    String?
+  createdAt DateTime   @default(now())
+
+  site  Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([siteId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Scan pipeline (3-layer hybrid — see ADR-0004)
+// ─────────────────────────────────────────────────────────────
+
+enum ScanProvider {
+  GOOGLE_SAFE_BROWSING
+  PHISHTANK
+  URLSCAN
+  VIRUSTOTAL
+  INTERNAL_CRAWLER
+}
+
+enum ScanVerdict {
+  SAFE
+  SUSPICIOUS
+  MALICIOUS
+  ERROR
+  NO_DATA
+}
+
+model ScanRun {
+  id          String    @id @default(cuid())
+  siteId      String
+  requesterId String?
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  aggregateScore Float?
+  aggregateVerdict ScanVerdict?
+
+  site      Site            @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  requester User?           @relation("ScanRequester", fields: [requesterId], references: [id])
+  results   ScanResult[]
+
+  @@index([siteId])
+  @@index([startedAt])
+}
+
+model ScanResult {
+  id        String       @id @default(cuid())
+  scanRunId String
+  provider  ScanProvider
+  verdict   ScanVerdict
+  score     Float?
+  rawJson   Json
+  createdAt DateTime     @default(now())
+
+  scanRun ScanRun @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
+
+  @@unique([scanRunId, provider])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Blocklist (ADR-0003)
+// ─────────────────────────────────────────────────────────────
+
+enum BlockRuleType {
+  DOMAIN
+  IP
+  IP_PREFIX
+}
+
+model BlockRule {
+  id        String        @id @default(cuid())
+  siteId    String?
+  type      BlockRuleType
+  value     String
+  reason    String?
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  revokedAt DateTime?
+
+  site Site? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@unique([type, value])
+  @@index([isActive])
+}
+
+model BlocklistPublish {
+  id           String   @id @default(cuid())
+  publisherId  String
+  format       String
+  ruleCount    Int
+  etag         String
+  publishedAt  DateTime @default(now())
+
+  publisher User @relation(fields: [publisherId], references: [id])
+
+  @@index([publishedAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Traffic ingestion (ADR-0002)
+// ─────────────────────────────────────────────────────────────
+
+model IngestSource {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  tokens IngestToken[]
+}
+
+model IngestToken {
+  id          String    @id @default(cuid())
+  sourceId    String
+  tokenHash   String    @unique
+  label       String?
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  lastUsedAt  DateTime?
+
+  source IngestSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId])
+}
+
+model TrafficSample {
+  id         String   @id @default(cuid())
+  ts         DateTime
+  srcIpHash  String
+  dstDomain  String
+  dstIp      String?
+  bytes      BigInt   @default(0)
+  countryIso String   @db.Char(2)
+  sourceId   String?
+  siteId     String?
+  createdAt  DateTime @default(now())
+
+  site Site? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@unique([ts, srcIpHash, dstDomain])
+  @@index([dstDomain])
+  @@index([ts])
+}
+
+// ─────────────────────────────────────────────────────────────
+// IP hashing salt rotation (ADR-0006)
+// ─────────────────────────────────────────────────────────────
+
+model HashSalt {
+  id         String    @id @default(cuid())
+  saltCipher String
+  isCurrent  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  retiredAt  DateTime?
+
+  @@index([isCurrent])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Audit log (append-only — see architecture.md)
+// ─────────────────────────────────────────────────────────────
+
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  SITE_CLASSIFY
+  SITE_RESCAN
+  BLOCK_ADD
+  BLOCK_REMOVE
+  BLOCKLIST_PUBLISH
+  INGEST_SOURCE_CREATE
+  INGEST_TOKEN_CREATE
+  INGEST_TOKEN_REVOKE
+  USER_CREATE
+  USER_DELETE
+  USER_ROLE_CHANGE
+  USER_DEACTIVATE
+}
+
+model AuditEvent {
+  id        String      @id @default(cuid())
+  actorId   String?
+  action    AuditAction
+  target    String?
+  before    Json?
+  after     Json?
+  reason    String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
