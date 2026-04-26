@@ -11,6 +11,7 @@ import {
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { AuthorizationError, requireRole } from "@/lib/rbac";
+import { runScan } from "@/lib/scan/runner";
 
 const classifySchema = z.object({
   siteId: z.string().min(1),
@@ -148,8 +149,8 @@ export async function requestRescan(
   const site = await prisma.site.findUnique({ where: { id: parsed.data.siteId } });
   if (!site) return { ok: false, error: "Site introuvable" };
 
-  await prisma.$transaction(async (tx) => {
-    await tx.scanRun.create({
+  const scanRun = await prisma.$transaction(async (tx) => {
+    const run = await tx.scanRun.create({
       data: { siteId: site.id, requesterId: user.id },
     });
     await logAudit(
@@ -160,6 +161,11 @@ export async function requestRescan(
       },
       tx,
     );
+    return run;
+  });
+
+  runScan(scanRun.id).catch((err) => {
+    console.error(`Scan ${scanRun.id} failed:`, err);
   });
 
   revalidatePath(`/sites/${site.id}`);
