@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BlockRuleType, SiteStatus } from "@/app/generated/prisma";
 import { BulkBlockForm } from "@/components/sites/bulk-block-form";
+import { QuickBlockForm } from "@/components/sites/quick-block-form";
 import { SiteStatusBadge } from "@/components/site-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -116,10 +117,13 @@ export default async function SitesPage({ searchParams }: { searchParams: Search
           </form>
         </CardHeader>
         <CardContent className="space-y-4 px-6 pb-6 pt-0">
-          <BulkBlockForm
-            defaultStatus={isValidStatus ? statusFilter : undefined}
-            defaultQuery={query}
-          />
+          <div className="flex flex-wrap gap-2">
+            <QuickBlockForm />
+            <BulkBlockForm
+              defaultStatus={isValidStatus ? statusFilter : undefined}
+              defaultQuery={query}
+            />
+          </div>
         </CardContent>
       </Card>
 
