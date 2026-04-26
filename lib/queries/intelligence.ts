@@ -94,6 +94,67 @@ export async function getTopSitesForCountry(
   }));
 }
 
+export type Suggestion = {
+  siteId: string;
+  domain: string;
+  status: string;
+  trustScore: number;
+  totalBytes: bigint;
+  lastScanAt: Date | null;
+};
+
+export async function getBlockSuggestions(
+  country: string,
+  options: { trustMax?: number; limit?: number; sinceDays?: number } = {},
+): Promise<Suggestion[]> {
+  const trustMax = options.trustMax ?? 30;
+  const limit = options.limit ?? 50;
+  const sinceDays = options.sinceDays ?? 14;
+  const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
+
+  const rows = await prisma.$queryRaw<
+    Array<{
+      siteId: string;
+      domain: string;
+      status: string;
+      trustScore: number;
+      bytes: bigint;
+      lastScanAt: Date | null;
+    }>
+  >(
+    Prisma.sql`
+      SELECT s."id" AS "siteId",
+             s."domain",
+             s."status",
+             s."trustScore",
+             s."lastScanAt",
+             COALESCE(SUM(t."bytes"), 0)::bigint AS bytes
+      FROM "Site" s
+      JOIN "TrafficSample" t ON t."dstDomain" = s."domain"
+      LEFT JOIN "BlockRule" b
+        ON b."type" = 'DOMAIN' AND b."value" = s."domain" AND b."isActive" = true
+      WHERE t."countryIso" = ${country}
+        AND t."ts" >= ${since}
+        AND s."trustScore" IS NOT NULL
+        AND s."trustScore" <= ${trustMax}
+        AND s."status" <> 'WHITELISTED'
+        AND b."id" IS NULL
+      GROUP BY s."id", s."domain", s."status", s."trustScore", s."lastScanAt"
+      ORDER BY s."trustScore" ASC, bytes DESC
+      LIMIT ${limit}
+    `,
+  );
+
+  return rows.map((r) => ({
+    siteId: r.siteId,
+    domain: r.domain,
+    status: r.status,
+    trustScore: r.trustScore,
+    totalBytes: r.bytes,
+    lastScanAt: r.lastScanAt,
+  }));
+}
+
 export type CountryTrustDistribution = {
   veryHigh: number;
   high: number;

@@ -14,9 +14,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AcceptSuggestionButton } from "@/components/intelligence/accept-suggestion-button";
 import { COUNTRIES, countryName } from "@/lib/countries";
 import { formatBytes, formatDateTime, formatNumber } from "@/lib/format";
 import {
+  getBlockSuggestions,
   getCountryTrustDistribution,
   getTopSitesForCountry,
   getTrafficByCountry,
@@ -37,10 +39,11 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
       : "BJ";
   const limit = Math.min(Math.max(Number.parseInt(params.limit ?? "100", 10) || 100, 10), 500);
 
-  const [trafficByCountry, topSites, distribution] = await Promise.all([
+  const [trafficByCountry, topSites, distribution, suggestions] = await Promise.all([
     getTrafficByCountry(),
     getTopSitesForCountry(country, { limit }),
     getCountryTrustDistribution(country),
+    getBlockSuggestions(country, { trustMax: 30, limit: 30 }),
   ]);
 
   const totalSites = Object.values(distribution).reduce((a, b) => a + b, 0);
@@ -153,6 +156,64 @@ export default async function IntelligencePage({ searchParams }: { searchParams:
           </div>
         </CardContent>
       </Card>
+
+      {suggestions.length > 0 && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardHeader>
+            <CardTitle>
+              ⚠️ Suggestions de blocage — {countryName(country)} ({suggestions.length})
+            </CardTitle>
+            <CardDescription>
+              Sites consultés depuis {countryName(country)} avec un score de confiance ≤ 30,
+              non encore bloqués. Un clic = classification DANGEROUS + règle de blocage pour ce
+              pays.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Domaine</TableHead>
+                  <TableHead>Confiance</TableHead>
+                  <TableHead>Statut actuel</TableHead>
+                  <TableHead className="text-right">Volume</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {suggestions.map((s) => (
+                  <TableRow key={s.siteId}>
+                    <TableCell>
+                      <Link
+                        href={`/sites/${s.siteId}`}
+                        className="font-mono text-xs underline-offset-2 hover:underline"
+                      >
+                        {s.domain}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <TrustBadge score={s.trustScore} />
+                    </TableCell>
+                    <TableCell>
+                      <SiteStatusBadge
+                        status={
+                          s.status as React.ComponentProps<typeof SiteStatusBadge>["status"]
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatBytes(s.totalBytes)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <AcceptSuggestionButton siteId={s.siteId} country={country} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
