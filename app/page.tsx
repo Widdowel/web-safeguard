@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function HomePage() {
   return (
@@ -7,18 +9,13 @@ export default function HomePage() {
         <span className="rounded-full bg-accent px-3 py-1 text-xs font-medium uppercase tracking-wider text-accent-foreground">
           Plateforme institutionnelle
         </span>
-        <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl">
-          web-safeguard
-        </h1>
+        <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl">web-safeguard</h1>
         <p className="mt-4 text-balance text-lg text-muted-foreground">
           Surveillance du trafic national, détection et blocage des sites et applications
           frauduleux pour la protection des utilisateurs résidents du pays.
         </p>
-        <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-          <Link
-            href="/login"
-            className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
+        <div className="mt-10">
+          <Link href="/login" className={cn(buttonVariants({ size: "lg" }))}>
             Accéder à la console
           </Link>
         </div>
@@ -30,3 +27,4 @@ export default function HomePage() {
     </main>
   );
 }
+
